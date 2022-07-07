@@ -51,29 +51,75 @@
 							<div class="wrapper">
 								<div class="inner">
 
-									<h3 class="major">Lorem ipsum dolor</h3>
-									<p>Morbi mattis mi consectetur tortor elementum, varius pellentesque velit convallis. Aenean tincidunt lectus auctor mauris maximus, ac scelerisque ipsum tempor. Duis vulputate ex et ex tincidunt, quis lacinia velit aliquet. Duis non efficitur nisi, id malesuada justo. Maecenas sagittis felis ac sagittis semper. Curabitur purus leo donec vel dolor at arcu tincidunt bibendum. Interdum et malesuada fames ac ante ipsum primis in faucibus. Fusce ut aliquet justo. Donec id neque ipsum. Integer eget ultricies odio. Nam vel ex a orci fringilla tincidunt. Aliquam eleifend ligula non velit accumsan cursus. Etiam ut gravida sapien.</p>
+									<h3 class="major">Gameplay</h3>
+									<p>Before jumping into an overview of the design and features, please enjoy this demo video that highlights some aspects of the gameplay:</p>
 
-									<p>Vestibulum ultrices risus velit, sit amet blandit massa auctor sit amet. Sed eu lectus sem. Phasellus in odio at ipsum porttitor mollis id vel diam. Praesent sit amet posuere risus, eu faucibus lectus. Vivamus ex ligula, tempus pulvinar ipsum in, auctor porta quam. Proin nec commodo, vel scelerisque nisi scelerisque. Suspendisse id quam vel tortor tincidunt suscipit. Nullam auctor orci eu dolor consectetur, interdum ullamcorper ante tincidunt. Mauris felis nec felis elementum varius.</p>
+									<p>
+									<iframe id="ytplayer" type="text/html" width="640" height="360"
+									src="https://www.youtube.com/embed/NohtYNz88nA?"
+									frameborder="0" allowfullscreen="1"></iframe>	
+									</p>
 
-									<h3 class="major">Vitae phasellus</h3>
-									<p>Cras mattis ante fermentum, malesuada neque vitae, eleifend erat. Phasellus non pulvinar erat. Fusce tincidunt, nisl eget mattis egestas, purus ipsum consequat orci, sit amet lobortis lorem lacus in tellus. Sed ac elementum arcu. Quisque placerat auctor laoreet.</p>
-
-									<section class="features">
-										<article>
-											<a href="#" class="image"><img src="images/pic04.jpg" alt="" /></a>
-											<h3 class="major">Sed feugiat lorem</h3>
-											<p>Lorem ipsum dolor sit amet, consectetur adipiscing vehicula id nulla dignissim dapibus ultrices.</p>
-											<a href="#" class="special">Learn more</a>
-										</article>
-										<article>
-											<a href="#" class="image"><img src="images/pic05.jpg" alt="" /></a>
-											<h3 class="major">Nisl placerat</h3>
-											<p>Lorem ipsum dolor sit amet, consectetur adipiscing vehicula id nulla dignissim dapibus ultrices.</p>
-											<a href="#" class="special">Learn more</a>
-										</article>
-									</section>
-
+									<p>Some of the capabilities that can be observed in the video include multidirectional player movement, collision detection, several projectiles tracking and shooting, multiple unique enemies, a health/damage system, multiple game states and a dynamic background.</p>
+									<br>
+									<h3 class="major">Design</h3>
+									<p>
+									Before starting to implement our game, we had an idea of what we wanted to achieve and a starting spot for our development. The first thing we did was set up a ball to be drawn on the screen which we could move around using arrow keys.
+									To implement the keyboard input, we had to use Platform Designer and NIOS II to communicate with the MAX3421E USB Controller. We had to extend the default datatypes so we could detect multiple keys being pressed at once, allowing the
+									player to move in multiple directions at once (diagonal movement) as well as (in the future) to move while shooting. To draw the player (a ball for now) we set up a VGA module and a player module. We had to determine the player
+									position (initialized to an arbitrary point) and then draw the player color for a certain radius around it to achieve a ball shape.
+									</p>
+									<p>
+									Once we had this with movement working, we moved on to adding missiles. Adding one missile was not too challenging. We created a missile module and added an extra input key to shoot. Next, we set a small pink ball (similar to our player)
+									to draw at the front of the 'ship' for a certain duration. Then we simply changed its position at each clock cycle. We had to be careful to use the correct clock as the native FPGA clock would be too fast (50 Mhz), and so would the horizontal
+									sync signal (VGA_HS). Thus, we elected to use the vertical sync signal instead which aligns with VGA's refresh rate of 60Hz. Finally, we had to detect when the missile had gone off screen so we could erase it. To then convert this to multiple
+									projectiles, we elected to use packed arrays instead of declaring multiple modules. One key function we wrote to make this work involved finding the first 'free' spot in array to mark a new missile as present and track it accordingly. Although
+									we had to be very careful about making sure we track and draw each missile and check for collisions via for loops, this method helped our design to be more efficient and made the code more readable and reusable.
+									</p>
+									<p>
+									For each module, we made sure to add parameters that would allow us to easily make adjustments. Setting up the sprites to be drawn was no exception. First, we had to infer on-chip Read-Only-Memory (ROM) to store the sprite data. Then, we converted
+									our drawn images into hex, where each value corresponds to an index into a simplified color palette for the image. Once this was all connected, we indexed into the sprite data based on the location of the sprite and the coordinates of the VGA scanner.
+									We drew the sprite if the current scan location fit within its bounds, and if it did, we drew the appropriate color from the palette based on the index and the coordinate. These calculations and modules were easily repeatable and combinable into our
+									project.
+									</p>
+									<p>
+									After completing the sprites, we went on to add enemies- they were also simply sprites, but they had to move in their own way. We chose to use a base enemy module and derive multiple instances of it in order to have different behaviors. There had to be
+									a sort of bouncing and moving forward motion for each of them, and we decided that the player should take damage when touch most of them. We then gave the player and enemies health, and enabled cross-module communication via some wire signals to determine
+									when the player or enemy got hit. Then we added damage based on which missile was hitting whom. Next, to enable enemy shooting, we made use of those parameters we had added to our missiles module. We made a new instance of it for enemy weapons and simply
+									had to change the origin of the bullet as well as the velocity to be negative in the x direciton. This made it very easy to have enemies shoot.
+									</p>
+									<p>
+									Finally, we had the core of the game complete. However, we wanted to add a Finite State Machine (FSM) so we could add a title screen and the ability to add a win/lose screen. These screens were also sprites, but the state controller is what enabled the
+									flow to be as we wanted. We added states for the main menu, in-game, game won and game lost. Then, when we went on to add a boss, we simply had to add another in-game stage which checked if the first two enemies had been defeated or not before sending out
+									the finaly enemy towards the player. 
+									</p>
+									<p>
+									As for the workflow and collaboration aspect, we used Git with a Github repository for version control. We each made our own branches with all the SystemVerilog code so we could develop and test features independently but still easily pull and push updates
+									while keeping the master branch clean. This greatly increased our productivity and allowed us to track bugs and collaborate more easily yet still work individually as needed.
+									</p>
+									<br>
+									<h3 class="major">Artwork</h3>
+									<p>Here you can see the sprites the made it into the game. All of these, including the title screen were drawn by my partner Haruya Kamitani.</p>
+									<div class="card">
+  
+										<div class="card_part card_part-one">
+										</div>
+										
+										 <!-- Photo 2 -->
+										<div class="card_part card_part-two">
+									  
+										</div>
+									  
+										<!-- Photo 3 -->
+										<div class="card_part card_part-three">
+										</div>
+									  
+										<!-- Photo 4 -->
+										<div class="card_part card_part-four">
+										</div>
+									  
+									  </div>
+								
 								</div>
 							</div>
 					</section>
