@@ -60,8 +60,57 @@
 									frameborder="0" allowfullscreen="1"></iframe>	
 									</p>
 									<p>
-									From the showcase video, one can tell that this operating system is capable of running multiple user programs at once, has both external and internal
-									device drivers, can take in user input through the terminal, has a working filesystem, and has multiple terminals. As will be discussed further, this OS also makes use of virtualization.
+									From the showcase video, one can tell that this operating system is capable of running multiple user programs at once, has both external and internal device drivers, can take in user input 
+									through the terminal, has a working filesystem, and has multiple terminals. As will be discussed further, this OS also makes use of virtualization.
+									</p>
+									<br>
+									<h3 class="major">Design</h3>
+									<p>
+									There are many different components to this Operating System that we all worked on to achieve the final product, but I will focus the discussion on my contributions and give an overview of 
+									some of the key parts we worked on together.
+									</p>
+									<p>
+									The first (and simplest) main part that I worked on was the Real Time Clock (RTC). The main challenge with this internal device was determining which registers do what and sending the right 
+									signals to them on startup or during the write system call. I decided to virtualize it early on, which meant setting it to the highest frequency possible, and allowing programs to set their 
+									own 'apparent' frequency by counting however many power-of-two occurences of the interrupt to 'divide' the clock, and then set a flag after that many counts that the program can wait/check for.
+									</p>
+									<p>
+									The next core component I did was virtualization. Virtualization is the abstraction of memory addresses given to programs, which helps with internal memory fragmentation, better security, 
+									and a larger apparent quantity of memory. Virtualization was achieved through paging, specifically by translating a 32-bit virtual address space to a 32-bit physical address space. The paging
+									structure had two levels, consisting of a page directory and a page table, with 4kB regular pages and 4MB large pages. Therefore we had to use 10 bits as an offset into the regular pages to
+									achieve byte-addressibility, and likewise, a 20 bit offset for the 4MB pages. This left 12 bits to index into the page directory, which means 10 bits are used to index into the page table.
+									I set up these paging structures accordingly and mapped them into memory on boot, allocating a large page for kernel memory and setting its page size and user/superviser bits, as well as 
+									initializing others to not present. The rest of the work for paging was integrated into system calls, which will be discussed.
+									</p>
+									<p>
+									Lastly, I wrote the filesystem for this project. The filesystem for this project was read-only, and would require another structure (bitmap of free inodes, for example) to allow for a feasible
+									write algorithm. The filesystem structure included a bootblock, directory entries, inodes (which included the length of the file and indices of their data blocks), and finally the datablocks
+									themselves. Each block was 4MB in size. After creating these structures, the first step was mapping the full filesystem with where it started in memory. This simply involved setting the address
+									of the bootblock to the appropriate value on startup. Then, I created and calculated offsets from that point to the start of each of the other structures (dentries, indoes, dblocks) to simplify
+									the functions themselves. There were three types of files- directories, files and the RTC (similar to Linux, everything including devices were treated as files). Therefore, directory and file
+									read/write/open/close functions had to be written. Three main helper functions used for this were read_dentry_by_name, read_dentry_by_index, and read_data. The first one simply searched through
+									all the directory entries and checked if any of the names matched; if they did, it returned the match. The second one just accessed the appropriate directory entry based on an index that was
+									passed in, doing some range checking first. Both of these first two copied the matching structures info into a skeleton directory entry instance passed in. Finally, read_data had to read a certain
+									number of bytes into a buffer that was passed in, from a specific file with a given starting offset. I first added null checks and a check to make sure that the length requested to be read along
+									with the offset did not go past the actual length of the file itself. Finally, using the inode number passed in, I found the data block to start copying from, and then I performed block-size copies,
+									using the optimized memcpy function. I checked to see if the rest of the current data block had to be copied or not (if there was more left after). If not, then the remaining amount to be copied
+									was put into the buffer and the function returned. Otherwise, the rest of the block is copied, the length and data block index is updated, and this continues until the amount to copy is fulfilled.
+									These three functions were used in conjunction with each other to allow for file and directory read to be possible. The open and close functions determined the correct pcb based on the current
+									terminal, and either added or reset a file descriptor accordingly. 
+									</p>
+									<p>
+									Portions which I worked with the team on included system calls execute, halt, getargs, vidmap as well as multiple terminals. The first two of these were written mostly by Kristen, but we 
+									all edited and debugged them together, putting all our own portions of code in. Particularly, my experience with paging was needed to fix problems such as page faults and bootlooping. I 
+									wrote getargs with Kristen, and vidmap and multiple terminal code with Carlos. Getargs involved determining if there was an argument, and then processing it as programs would expect. The
+									processing was done within execute, and then saved in the Process Control Block (PCB) so the argument could be returned if that program were to call the getargs system call. For vidmap,
+									we had to map a requested user-level virtual address to video memory so that the program could access it, to play animations such as the one in the demo video, for example. Multiple terminals
+									was difficult. It was similar to execute in that we had to execute a new program (whatever was executing on the terminal the user switches to), but additionally, we had to save the state of
+									the previous program. With multiple terminals, the order of programs in memory was no longer linear with respect to their execution, so we had to add tracking to each program's index within
+									user-level memory as well as its parent program's index so that when we halted any given program, it would execute the correct parent.
+									</p>
+									<p>
+									For version control and tracking bugs on this project, we used Git with Gitlab, and for testing, we used QEMU, which allowed us to emulate our OS. For debugging, we relied on GDB. Our code 
+									was written mostly in C when we could, and in Assembly when helpful or necessary (usually when accessing registers).
 									</p>
 								</div>
 							</div>
